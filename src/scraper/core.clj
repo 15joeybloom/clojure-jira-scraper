@@ -1,4 +1,5 @@
 (ns scraper.core
+  (:gen-class)
   (:require [clj-http.client :as http]
             [environ.core :refer [env]]
             [cheshire.core :refer [parse-string]]))
@@ -39,6 +40,29 @@
        parse-string
        clojure.walk/keywordize-keys
        :issues))
+
+(def sort-order {"Queue" 1
+                 "Sized" 2
+                 "Blocked" 3
+                 "In Progress" 4
+                 "Ready for Release" 5
+                 "Done" 6
+                 "Rejected" 7})
+
+(defn -main [& jql]
+  (let [query (clojure.string/join " " jql)]
+    (->> query
+         search-jql
+         (map (juxt :key
+                    (comp :name :status :fields)
+                    (comp :summary :fields)
+                    #(str "https://opploans.atlassian.net/browse/" (:key %))))
+         (sort-by (comp sort-order second))
+         (concat [["Ticket" "State" "Summary" "Link"]])
+         (map (partial map (partial format "\"%s\"")))
+         (map (partial clojure.string/join ","))
+         (clojure.string/join "\n")
+         println)))
 
 (comment
   (get-issues)
