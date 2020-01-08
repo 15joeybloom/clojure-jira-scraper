@@ -8,8 +8,12 @@ Define env vars:
 
     JIRA_EMAIL
     JIRA_TOKEN
+    JIRA_ORG
 
-Currently this isn't a working program, but a REPL-able proof-of-concept. See `src/scraper/core.clj`.
+Example: find some random tickets.
+
+    lein run "'Epic Link' = PDQ"
+    lein run "project = XYZ AND status = Backlog" | shuf | tail > stuff.csv && open stuff.csv
 
 ## License
 
