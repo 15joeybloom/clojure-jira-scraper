@@ -56,7 +56,9 @@
          (map (juxt :key
                     (comp :name :status :fields)
                     (comp :summary :fields)
-                    #(str "https://opploans.atlassian.net/browse/" (:key %))))
+                    #(str (format "https://%s.atlassian.net/browse/"
+                                  (get-org))
+                          (:key %))))
          (sort-by (comp sort-order second))
          (concat [["Ticket" "State" "Summary" "Link"]])
          (map (partial map (partial format "\"%s\"")))
