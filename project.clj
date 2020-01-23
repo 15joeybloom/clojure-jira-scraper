@@ -9,4 +9,5 @@
                  [clj-http "3.10.0"]
                  [environ "1.1.0"]
                  [hickory "0.7.1"]]
+  :uberjar-name "scraper.jar"
   :repl-options {:init-ns scraper.core})
