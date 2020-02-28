@@ -57,12 +57,14 @@
                     search-jql
                     (map (juxt :key
                                (comp :name :status :fields)
+                               (comp :name :issuetype :fields)
                                (comp :summary :fields)
                                #(str (format "https://%s.atlassian.net/browse/"
                                              (get-org))
                                      (:key %))))
                     (sort-by (comp sort-order second))
-                    (concat [["Ticket" "State" "Summary" "Link"]]))]
+                    (concat [["Ticket" "State" "Type" "Summary" "Link"]
+                             [""       ""      ""     ""        "<10>"]]))]
     (if org?
       (->> sorted
            (partition-by second)
