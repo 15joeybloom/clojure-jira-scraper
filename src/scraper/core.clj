@@ -9,21 +9,26 @@
 (defn ^:private get-email [] {:post [(env :jira-email)]} (env :jira-email))
 (defn ^:private get-token [] {:post [(env :jira-token)]} (env :jira-token))
 (defn ^:private get-org [] {:post [(env :jira-org)]} (env :jira-org))
+
 (defn ^:private base-url [] (format "https://%s.atlassian.net" (get-org)))
-(defn ^:private jira-issue-url []
+(defn ^:private backlog-url []
   (str (base-url) "/rest/agile/1.0/board/25/backlog"))
+(defn ^:private search-url []
+  (str (base-url) "/rest/api/2/search"))
+(defn ^:private issue-ui-url [issue-name]
+  (str (base-url) "/browse/" issue-name))
 
 (defn ^:private get-auth [] [(get-email) (get-token)])
 
 (defn ^:private jira-query [verb url params auth]
   (({:get http/get, :post http/post} verb)
    url
-   {({:get :query-params, :post :form-params} verb)
-    params :basic-auth auth}))
+   {({:get :query-params, :post :form-params} verb) params
+    :basic-auth auth}))
 
-(defn get-issues []
+(defn get-backlog-issues []
   (->> (jira-query :get
-                   (jira-issue-url)
+                   (backlog-url)
                    {:startAt 0, :maxResults 9999}
                    (get-auth))
        :body
@@ -31,9 +36,9 @@
        clojure.walk/keywordize-keys
        :issues))
 
-(defn get-issue-data [jql]
+(defn run-jql [jql]
   (->> (jira-query :get
-                   (str (base-url) "/rest/api/2/search")
+                   (search-url)
                    {:jql jql
                     :maxResults 10000
                     :startAt 0}
@@ -50,6 +55,8 @@
                  "Ready for Release" 5
                  "Done" 6
                  "Rejected" 7})
+
+;; Adapted from https://github.com/clojure/tools.cli#example-usage
 
 (def cli-options
   [["-o" "--output OUTPUT_FORMAT" "Output format - csv or org."
@@ -84,15 +91,12 @@
       (let [org? (= :org (:output options))
             jql arguments
             query (str/join \space jql)
-            results (->> (get-issue-data query)
+            results (->> (run-jql query)
                          (map (juxt :key
                                     (comp :name :status :fields)
                                     (comp :name :issuetype :fields)
                                     (comp :summary :fields)
-                                    #(str (format
-                                            "https://%s.atlassian.net/browse/"
-                                            (get-org))
-                                          (:key %))))
+                                    (comp issue-ui-url :key)))
                          (sort-by (comp sort-order second)))
             lines (if org?
                     (->> results
@@ -113,7 +117,7 @@
              println)))))
 
 (comment
-  (get-issues)
+  (def issues (get-backlog-issues))
 
   (search-jql "project = 'Backend Wares'")
   )
