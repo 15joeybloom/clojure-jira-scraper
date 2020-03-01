@@ -15,6 +15,10 @@ jobs:
       run: lein ancient
     - name: Check for clean compile
       run: lein compile
+    - name: Bikeshed linter
+      run: lein bikeshed
+    - name: Kibit linter
+      run: lein kibit
     - name: Run tests
       run: lein test
     - name: Builds uberjar

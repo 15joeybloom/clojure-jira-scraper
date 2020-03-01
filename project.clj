@@ -9,5 +9,8 @@
                  [clj-http "3.10.0"]
                  [environ "1.1.0"]
                  [hickory "0.7.1"]]
+  :plugins [[lein-ancient "0.6.15"]
+            [lein-bikeshed "0.5.2"]
+            [lein-kibit "0.1.8"]]
   :uberjar-name "scraper.jar"
   :repl-options {:init-ns scraper.core})
