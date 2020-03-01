@@ -50,19 +50,37 @@
                  "Rejected" 7})
 
 (defn -main [& jql]
-  (let [query (clojure.string/join " " jql)]
-    (->> query
-         search-jql
-         (map (juxt :key
-                    (comp :name :status :fields)
-                    (comp :summary :fields)
-                    #(str "https://opploans.atlassian.net/browse/" (:key %))))
-         (sort-by (comp sort-order second))
-         (concat [["Ticket" "State" "Summary" "Link"]])
-         (map (partial map (partial format "\"%s\"")))
-         (map (partial clojure.string/join ","))
-         (clojure.string/join "\n")
-         println)))
+  (let [org? (= (first jql) "org")
+        jql (if org? (rest jql) jql)
+        query (clojure.string/join " " jql)
+        sorted (->> query
+                    search-jql
+                    (map (juxt :key
+                               (comp :name :status :fields)
+                               (comp :name :issuetype :fields)
+                               (comp :summary :fields)
+                               #(str (format "https://%s.atlassian.net/browse/"
+                                             (get-org))
+                                     (:key %))))
+                    (sort-by (comp sort-order second))
+                    (concat [["Ticket" "State" "Type" "Summary" "Link"]
+                             [""       ""      ""     ""        "<10>"]]))]
+    (if org?
+      (->> sorted
+           (partition-by second)
+           (interleave (repeat [["---"]]))
+           (#(concat % [[["---"]]]))
+           (apply concat)
+           (map (partial clojure.string/join "|"))
+           (map (partial format "|%s|"))
+           (clojure.string/join "\n")
+           println)
+      (->> sorted
+           (map (partial map (partial format "\"%s\"")))
+           (map (partial clojure.string/join ","))
+           (clojure.string/join "\n")
+           println))))
+
 
 (comment
   (get-issues)

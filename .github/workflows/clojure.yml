@@ -1,0 +1,25 @@
+name: Build and Unit Test CloJiScrap
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install dependencies
+      run: lein deps
+    - name: Checks for stale dependencies
+      run: lein ancient
+    - name: Check for clean compile
+      run: lein compile
+    - name: Bikeshed linter
+      run: lein bikeshed
+    - name: Kibit linter
+      run: lein kibit
+    - name: Run tests
+      run: lein test
+    - name: Builds uberjar
+      run: lein uberjar
