@@ -1,8 +1,10 @@
 (ns scraper.core
   (:gen-class)
-  (:require [clj-http.client :as http]
-            [environ.core :refer [env]]
-            [cheshire.core :refer [parse-string]]))
+  (:require [cheshire.core :as json]
+            [clj-http.client :as http]
+            [clojure.string :as str]
+            [clojure.tools.cli :as cli]
+            [environ.core :refer [env]]))
 
 (defn ^:private get-email [] {:post [(env :jira-email)]} (env :jira-email))
 (defn ^:private get-token [] {:post [(env :jira-token)]} (env :jira-token))
@@ -25,11 +27,11 @@
                    {:startAt 0, :maxResults 9999}
                    (get-auth))
        :body
-       parse-string
+       json/parse-string
        clojure.walk/keywordize-keys
        :issues))
 
-(defn search-jql [jql]
+(defn get-issue-data [jql]
   (->> (jira-query :get
                    (str (base-url) "/rest/api/2/search")
                    {:jql jql
@@ -37,7 +39,7 @@
                     :startAt 0}
                    (get-auth))
        :body
-       parse-string
+       json/parse-string
        clojure.walk/keywordize-keys
        :issues))
 
@@ -49,38 +51,66 @@
                  "Done" 6
                  "Rejected" 7})
 
-(defn -main [& jql]
-  (let [org? (= (first jql) "org")
-        jql (if org? (rest jql) jql)
-        query (clojure.string/join " " jql)
-        sorted (->> query
-                    search-jql
-                    (map (juxt :key
-                               (comp :name :status :fields)
-                               (comp :name :issuetype :fields)
-                               (comp :summary :fields)
-                               #(str (format "https://%s.atlassian.net/browse/"
-                                             (get-org))
-                                     (:key %))))
-                    (sort-by (comp sort-order second))
-                    (concat [["Ticket" "State" "Type" "Summary" "Link"]
-                             [""       ""      ""     ""        "<10>"]]))]
-    (if org?
-      (->> sorted
-           (partition-by second)
-           (interleave (repeat [["---"]]))
-           (#(concat % [[["---"]]]))
-           (apply concat)
-           (map (partial clojure.string/join "|"))
-           (map (partial format "|%s|"))
-           (clojure.string/join "\n")
-           println)
-      (->> sorted
-           (map (partial map (partial format "\"%s\"")))
-           (map (partial clojure.string/join ","))
-           (clojure.string/join "\n")
-           println))))
+(def cli-options
+  [["-o" "--output OUTPUT_FORMAT" "Output format - csv or org."
+    :default :csv
+    :default-desc ""
+    :parse-fn keyword
+    :validate [#{:csv :org} (str "Invalid output format. Supported "
+                                 "output formats are csv and org.")]]
+   ["-h" "--help"]])
 
+(defn usage [options-summary]
+  (str/join \newline
+            ["Run Jira Query Language (JQL) against your jira organization"
+             ""
+             "Usage: lein run [OPTIONS] JQL ..."
+             ""
+             "Options:"
+             options-summary]))
+
+(defn validate-args [args]
+  (let [{:keys [options arguments summary errors]}
+        (cli/parse-opts args cli-options)]
+    (cond (:help options) {:exit-message (usage summary) :ok? true}
+          errors {:exit-message (str/join \newline errors)}
+          :else {:options options :arguments arguments})))
+
+(defn -main [& args]
+  (let [{:keys [options arguments ok? exit-message]} (validate-args args)]
+    (if exit-message
+      (do (println exit-message)
+          (System/exit (if ok? 0 1)))
+      (let [org? (= :org (:output options))
+            jql arguments
+            query (str/join \space jql)
+            results (->> (get-issue-data query)
+                         (map (juxt :key
+                                    (comp :name :status :fields)
+                                    (comp :name :issuetype :fields)
+                                    (comp :summary :fields)
+                                    #(str (format
+                                            "https://%s.atlassian.net/browse/"
+                                            (get-org))
+                                          (:key %))))
+                         (sort-by (comp sort-order second)))
+            lines (if org?
+                    (->> results
+                         (concat [["Ticket" "State" "Type" "Summary" "Link"]
+                                  [""       ""      ""     ""        "<10>"]])
+                         (partition-by second)
+                         (interleave (repeat [["---"]]))
+                         (#(concat % [[["---"]]]))
+                         (apply concat)
+                         (map (partial str/join "|"))
+                         (map (partial format "|%s|")))
+                    (->> results
+                         (concat [["Ticket" "State" "Type" "Summary" "Link"]])
+                         (map (partial map (partial format "\"%s\"")))
+                         (map (partial str/join ","))))]
+        (->> lines
+             (str/join \newline)
+             println)))))
 
 (comment
   (get-issues)
